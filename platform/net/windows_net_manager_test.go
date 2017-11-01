@@ -165,9 +165,10 @@ var _ = Describe("WindowsNetManager", func() {
 
 		It("ignores VIP networks", func() {
 			macAddressDetector.setupMACs(network1, network2)
+			commandsLength := len(runner.RunCommands)
 			err := setupNetworking(boshsettings.Networks{"vip": vip})
 			Expect(err).ToNot(HaveOccurred())
-			Expect(runner.RunCommands).To(Equal([][]string{[]string{"-Command", ResetDNSHostList}}))
+			Expect(len(runner.RunCommands)).To(Equal(commandsLength), fmt.Sprintf("Unexpected command(s) were run: %v", runner.RunCommands[commandsLength:]))
 		})
 
 		It("returns an error when configuring fails", func() {
@@ -220,17 +221,17 @@ var _ = Describe("WindowsNetManager", func() {
 					[]string{"-Command", fmt.Sprintf(SetInterfaceHostListTemplate, "Loopback Pseudo-Interface 1", "127.0.0.1,169.254.0.2")}))
 			})
 
-			It("resets DNS without any DNS servers", func() {
+			It("does nothing if the DNS host list is empty in the cloud config", func() {
 				network := boshsettings.Network{
 					Type:    "manual",
 					Default: []string{"gateway", "dns"},
 				}
 
+				commandsLength := len(runner.RunCommands)
 				err := setupNetworking(boshsettings.Networks{"static-1": network})
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(runner.RunCommands).To(ContainElement(
-					[]string{"-Command", ResetDNSHostList}))
+				Expect(len(runner.RunCommands)).To(Equal(commandsLength), fmt.Sprintf("Unexpected command(s) were run: %v", runner.RunCommands[commandsLength:]))
 			})
 		})
 
@@ -275,21 +276,6 @@ var _ = Describe("WindowsNetManager", func() {
 				Expect(runner.RunCommands).To(ContainElement(
 					[]string{"-Command", fmt.Sprintf(SetInterfaceHostListTemplate, "Ethernet", "169.254.0.2,10.0.0.1,127.0.0.1")}))
 			})
-
-			It("returns error if resetting DNS servers fails", func() {
-				network := boshsettings.Network{Type: "manual"}
-				runner.AddCmdResult(fmt.Sprintf("-Command %s", GetIPv4InterfaceJSON),
-					fakesys.FakeCmdResult{Stdout: interfacesJSON})
-
-				runner.AddCmdResult(
-					"-Command "+ResetDNSHostList,
-					fakesys.FakeCmdResult{Error: errors.New("fake-err")},
-				)
-
-				err := setupNetworking(boshsettings.Networks{"static-1": network})
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(Equal("Setting DNS servers: fake-err"))
-			})
 		})
 	})
 
@@ -320,7 +306,7 @@ var _ = Describe("WindowsNetManager", func() {
 				[]string{"-Command", GetIPv4InterfaceJSON}))
 		})
 
-		It("resets DNS without any DNS servers if there are multiple networks", func() {
+		It("does nothing if the DNS host list is empty in the cloud config and there are multiple networks", func() {
 			testNetwork1 := boshsettings.Network{
 				Type:    "manual",
 				DNS:     []string{"8.8.8.8"},
@@ -334,15 +320,16 @@ var _ = Describe("WindowsNetManager", func() {
 			}
 
 			macAddressDetector.setupMACs(testNetwork1, testNetwork2)
+			commandsLength := len(runner.RunCommands)
 			err := setupNetworking(boshsettings.Networks{"man-1": testNetwork1, "man-2": testNetwork2})
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(runner.RunCommands).To(Equal([][]string{[]string{"-Command", ResetDNSHostList}}))
+			Expect(len(runner.RunCommands)).To(Equal(commandsLength), fmt.Sprintf("Unexpected command(s) were run: %v", runner.RunCommands[commandsLength:]))
 		})
 	})
 
 	Context("when there is no non-vip network marked default for DNS", func() {
-		It("resets DNS without any DNS servers", func() {
+		It("does nothing if the DNS host list is empty in the cloud config", func() {
 			network1 := boshsettings.Network{
 				Type:    "manual",
 				Default: []string{"gateway"},
@@ -354,19 +341,21 @@ var _ = Describe("WindowsNetManager", func() {
 				Default: []string{"gateway", "dns"},
 			}
 
+			commandsLength := len(runner.RunCommands)
 			err := setupNetworking(boshsettings.Networks{"static-1": network1, "vip-1": network2})
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(runner.RunCommands).To(Equal([][]string{[]string{"-Command", ResetDNSHostList}}))
+			Expect(len(runner.RunCommands)).To(Equal(commandsLength), fmt.Sprintf("Unexpected command(s) were run: %v", runner.RunCommands[commandsLength:]))
 		})
 	})
 
 	Context("when there are no networks", func() {
-		It("resets DNS", func() {
+		It("does nothing", func() {
+			commandsLength := len(runner.RunCommands)
 			err := setupNetworking(boshsettings.Networks{})
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(runner.RunCommands).To(Equal([][]string{[]string{"-Command", ResetDNSHostList}}))
+			Expect(len(runner.RunCommands)).To(Equal(commandsLength), fmt.Sprintf("Unexpected command(s) were run: %v", runner.RunCommands[commandsLength:]))
 		})
 	})
 })
